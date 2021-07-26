@@ -1,0 +1,69 @@
+/**
+ * Main CAmkES configuration file of the exercise demo application.
+ *
+ * Copyright (C) 2021, Hensoldt Cyber GmbH
+ */
+
+import <std_connector.camkes>;
+
+#include "system_config.h"
+
+//----------------------------------------------------------------------
+// Storage
+//----------------------------------------------------------------------
+
+#include "RamDisk/RamDisk.camkes"
+RamDisk_COMPONENT_DEFINE(RamDisk)
+
+#include "StorageServer/camkes/StorageServer.camkes"
+StorageServer_COMPONENT_DEFINE(StorageServer)
+
+import "components/TestApp/TestApp.camkes";
+
+//----------------------------------------------------------------------
+// System
+//----------------------------------------------------------------------
+
+assembly {
+    composition {
+        //----------------------------------------------------------------------
+        // Storage
+        //----------------------------------------------------------------------
+        component   RamDisk             ramDisk;
+
+        //----------------------------------------------------------------------
+        // StorageServer
+        //----------------------------------------------------------------------
+        component   StorageServer       storageServer;
+
+        StorageServer_INSTANCE_CONNECT(
+            storageServer,
+            ramDisk.storage_rpc, ramDisk.storage_port
+        )
+
+        StorageServer_INSTANCE_CONNECT_CLIENTS(
+            storageServer,
+            testApp.storage_rpc_1, testApp.storage_dp_1,
+            testApp.storage_rpc_2, testApp.storage_dp_2
+        )
+
+        //----------------------------------------------------------------------
+        // Demo Component (using File System)
+        //----------------------------------------------------------------------
+        component   TestApp      testApp;
+    }
+
+    configuration {
+
+        StorageServer_INSTANCE_CONFIGURE_CLIENTS(
+            storageServer,
+            FILESYSTEM_1_STORAGE_OFFSET, FILESYSTEM_1_STORAGE_SIZE,
+            FILESYSTEM_2_STORAGE_OFFSET, FILESYSTEM_2_STORAGE_SIZE
+        )
+
+        StorageServer_CLIENT_ASSIGN_BADGES(
+            testApp.storage_rpc_1,
+            testApp.storage_rpc_2
+        )
+    }
+}
