@@ -6,6 +6,7 @@
 
 #include "lib_debug/Debug.h"
 #include <string.h>
+#include <math.h>
 
 #include "OS_Error.h"
 #include "OS_Network.h"
@@ -36,7 +37,7 @@ static OS_FileSystem_Config_t spiffsCfg_2 =
         storage_dp_2),
 };
 
-static char fileData[5];
+static char fileData[250];
 
 //------------------------------------------------------------------------------
 static void
@@ -170,106 +171,128 @@ int run()
     char buffer[4096];
     OS_NetworkAPP_RT(NULL);    /* Must be actually called by OS Runtime */
 
-    OS_NetworkServer_Socket_t  srv_socket =
+    // New network client stuff
+    OS_Network_Socket_t cli_socket =
     {
         .domain = OS_AF_INET,
         .type   = OS_SOCK_STREAM,
-        .listen_port = 5555,
-        .backlog = 1,
+        .name   = "10.0.0.10",
+        .port   = 8888
     };
 
-    /* Gets filled when accept is called */
-    OS_NetworkSocket_Handle_t  os_socket_handle ;
-    /* Gets filled when server socket create is called */
-    OS_NetworkServer_Handle_t  os_nw_server_handle ;
+    /* This creates a socket API and gives a handle which can be used
+       for further communication. */
+    OS_NetworkSocket_Handle_t handle[OS_NETWORK_MAXIMUM_SOCKET_NO];
+    OS_Error_t err;
+    int socket_max = 0;
+    int i;
 
-    OS_Error_t err = OS_NetworkServerSocket_create(NULL, &srv_socket,
-                                                   &os_nw_server_handle);
-
-    if (err != OS_SUCCESS)
+    for (i = 0; i < OS_NETWORK_MAXIMUM_SOCKET_NO; i++)
     {
-        Debug_LOG_ERROR("server_socket_create() failed, code %d", err);
-        return -1;
-    }
-
-    Debug_LOG_INFO("launching echo server");
-
-    for (;;)
-    {
-        err = OS_NetworkServerSocket_accept(os_nw_server_handle, &os_socket_handle);
+        err = OS_NetworkSocket_create(NULL, &cli_socket, &handle[i]);
         if (err != OS_SUCCESS)
         {
-            Debug_LOG_ERROR("socket_accept() failed, error %d", err);
-            return -1;
+            Debug_LOG_ERROR("client_socket_create() failed, code %d for %d socket", err, i);
+            break;
         }
+    }
+    socket_max = i;
 
-        /*
-            As of now the nw stack behavior is as below:
-            Keep reading data until you receive one of the return values:
-             a. err = OS_ERROR_CONNECTION_CLOSED and length = 0 indicating end of data read
-                      and connection close
-             b. err = OS_ERROR_GENERIC  due to error in read
-             c. err = OS_SUCCESS and length = 0 indicating no data to read but there is still
-                      connection
-             d. err = OS_SUCCESS and length >0 , valid data
+    Debug_LOG_INFO("Send request to host...");
 
-            Take appropriate actions based on the return value rxd.
+    char* request = "GET / HTTP/1.0\r\nHost: " CFG_TEST_HTTP_SERVER
+                    "\r\nConnection: close\r\n\r\n";
 
+    const size_t len_request = strlen(request);
+    size_t len = len_request;
 
-            Only a single socket is supported and no multithreading !!!
-            Once we accept an incoming connection, start reading data from the client and echo back
-            the data rxd.
-        */
-        memset(buffer, 0, sizeof(buffer));
-
-        Debug_LOG_INFO("starting server read loop");
-        /* Keep calling read until we receive CONNECTION_CLOSED from the stack */
-        for (;;)
+    /* Send the request to the host */
+    for (int i = 0; i < socket_max; i++)
+    {
+        size_t offs = 0;
+        Debug_LOG_INFO("Writing request to socket %d for %.*s", i, 17, request);
+        request[13] = 'a' + i;
+        do
         {
-            Debug_LOG_DEBUG("read...");
-            size_t n = 0;
-            // Try to read as much as fits into the buffer
-            err = OS_NetworkSocket_read(os_socket_handle, buffer, sizeof(buffer), &n);
-            if (OS_SUCCESS != err)
-            {
-                Debug_LOG_ERROR("socket_read() failed, error %d", err);
-                break;
-            }
+            const size_t lenRemaining = len_request - offs;
+            size_t len_io = lenRemaining;
 
-            err = OS_NetworkSocket_write(os_socket_handle, buffer, n, &n);
+            err = OS_NetworkSocket_write(handle[i], &request[offs], len_io, &len_io);
+
             if (err != OS_SUCCESS)
             {
-                Debug_LOG_ERROR("socket_write() failed, error %d", err);
-                break;
+                Debug_LOG_ERROR("socket_write() failed, code %d", err);
+                OS_NetworkSocket_close(handle[i]);
+                return OS_ERROR_GENERIC;
             }
 
-            memcpy(fileData, buffer, sizeof(fileData));
-        }
-            // ----------------------------------------------------------------------
-            // Storage Test
-            // ----------------------------------------------------------------------
+            /* fatal error, this must not happen. API broken*/
+            Debug_ASSERT(len_io <= lenRemaining);
 
-            // Work on file system 1 (residing on partition 1)
-            test_OS_FileSystem(&spiffsCfg_1);
-
-            // Work on file system 2 (residing on partition 2)
-            test_OS_FileSystem(&spiffsCfg_2);
-
-            Debug_LOG_INFO("Demo completed successfully.");
-
-        switch (err)
-        {
-        /* This means end of read as socket was closed. Exit now and close handle*/
-        case OS_ERROR_CONNECTION_CLOSED:
-            Debug_LOG_INFO("connection closed by server");
-            OS_NetworkSocket_close(os_socket_handle);
-            continue;
-        /* Any other value is a failure in read, hence exit and close handle  */
-        default :
-            Debug_LOG_ERROR("server socket failure, error %d", err);
-            OS_NetworkSocket_close(os_socket_handle);
-            continue;
-        } //end of switch
+            offs += len_io;
+        } while (offs < len_request);
     }
-    return -1;
+
+    Debug_LOG_INFO("read response...");
+
+    int flag = 0;
+
+    do
+    {
+        for (int i = 0; i < socket_max; i++)
+        {
+            len = sizeof(buffer);
+            memset(buffer, 0, sizeof(buffer));
+            OS_Error_t err = OS_ERROR_CONNECTION_CLOSED;
+            if (!(flag & (1 << i))) {
+                err = OS_NetworkSocket_read(handle[i], buffer, len, &len);
+            }
+
+            switch (err)
+            {
+            /* This means end of read or nothing further to read as socket was
+             * closed */
+            case OS_ERROR_CONNECTION_CLOSED:
+                Debug_LOG_INFO("socket_read() reported connection closed for handle %d", i);
+                flag |= 1 << i; /* terminate loop and close handle*/
+                break;
+
+            /* Continue further reading */
+            case OS_SUCCESS:
+                Debug_LOG_INFO("chunk read, length %d, handle %d", len, i);
+                memcpy(fileData, buffer, sizeof(fileData));
+                continue;
+
+            /* Error case, break and close the handle */
+            default:
+                Debug_LOG_INFO("socket_read() failed for handle %d, error %d", i, err);
+                flag |= 1 << i; /* terminate loop and close handle */
+                break;
+            }
+        }
+    } while (flag != pow(2, socket_max) - 1);
+
+    // ----------------------------------------------------------------------
+    // Storage Test
+    // ----------------------------------------------------------------------
+
+    // Work on file system 1 (residing on partition 1)
+    test_OS_FileSystem(&spiffsCfg_1);
+
+    // Work on file system 2 (residing on partition 2)
+    test_OS_FileSystem(&spiffsCfg_2);
+
+    Debug_LOG_INFO("Demo completed successfully.");
+
+    for (int i = 0; i < socket_max; i++)
+    {
+        /* Close the socket communication */
+        err = OS_NetworkSocket_close(handle[i]);
+        if (err != OS_SUCCESS)
+        {
+            Debug_LOG_ERROR("close() failed for handle %d, code %d", i, err);
+            return OS_ERROR_GENERIC;
+        }
+    }
+    return OS_SUCCESS;
 }
