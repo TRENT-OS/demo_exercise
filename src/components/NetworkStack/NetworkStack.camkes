@@ -1,0 +1,57 @@
+/*
+   *  Network Stack
+   *
+   *  Copyright (C) 2021, Hensoldt Cyber GmbH
+*/
+
+
+import <if_OS_Nic.camkes>;
+import <if_OS_Socket.camkes>;
+import <if_OS_Timer.camkes>;
+
+#include "include/util/loop_defines.h"
+#include "system_config.h"
+
+component NetworkStack {
+
+    control;
+
+    emits       EventDataAvailable              event_internal;
+    consumes    EventDataAvailable              event_tick_or_data; // event also from NIC and Timer
+
+    has         mutex                           allocatorMutex;
+    has         mutex                           nwstackMutex;
+
+    has         mutex                           socketControlBlockMutex;
+    has         mutex                           stackThreadSafeMutex;
+
+#define LOOP_COUNT OS_NETWORK_MAXIMUM_SOCKET_NO
+#define LOOP_ELEMENT                       \
+    GEN_ID(emits NwStack_WrEv e_write);    \
+    GEN_ID(consumes NwStack_WrEv c_write); \
+    GEN_ID(emits NwStack_RdEv e_read);     \
+    GEN_ID(consumes NwStack_RdEv c_read);  \
+    GEN_ID(emits NwStack_ConnEv e_conn);   \
+    GEN_ID(consumes NwStack_ConnEv c_conn);
+#include "include/util/loop.h"
+
+    //-------------------------------------------------
+    // interface TimeServer
+    uses        if_OS_Timer                     timeServer_rpc;
+    consumes    TimerReady                      timeServer_notify;
+
+    //-------------------------------------------------
+    // interface Ethernet NIC driver
+    uses        if_OS_Nic                       nic_driver;
+    dataport    Buf(NIC_DRIVER_RINGBUFFER_SIZE) nic_port_from; // NIC -> stack
+    dataport    Buf                             nic_port_to;   // stack -> NIC
+
+    //-------------------------------------------------
+    // interface Application
+    provides if_OS_Socket network_stack_rpc; // name hard-coded in network client lib
+    emits EventServiceReady nwStack_event_ready;
+#define LOOP_COUNT OS_NETWORK_MAXIMUM_SOCKET_NO
+#define LOOP_ELEMENT \
+    GEN_ID(dataport Buf nwStack_port);
+#include "include/util/loop.h"
+}

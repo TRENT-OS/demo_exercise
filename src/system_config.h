@@ -37,3 +37,22 @@
 #define FILESYSTEM_1_STORAGE_SIZE       (1024*32)
 #define FILESYSTEM_2_STORAGE_OFFSET     (1024*32)
 #define FILESYSTEM_2_STORAGE_SIZE       (1024*32)
+
+//-----------------------------------------------------------------------------
+// NIC driver
+//-----------------------------------------------------------------------------
+#define NIC_DRIVER_RINGBUFFER_NUMBER_ELEMENTS 16
+#define NIC_DRIVER_RINGBUFFER_SIZE                                             \
+    (NIC_DRIVER_RINGBUFFER_NUMBER_ELEMENTS * 4096)
+
+//-----------------------------------------------------------------------------
+// Network Stack
+//-----------------------------------------------------------------------------
+
+#ifndef OS_NETWORK_MAXIMUM_SOCKET_NO
+#define OS_NETWORK_MAXIMUM_SOCKET_NO 16
+#endif
+
+#define ETH_ADDR                  "10.0.0.11"
+#define ETH_GATEWAY_ADDR          "10.0.0.1"
+#define ETH_SUBNET_MASK           "255.255.255.0"
