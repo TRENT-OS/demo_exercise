@@ -15,9 +15,14 @@ target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 #-------------------------------------------------------------------------------
 project(demo_exercise C)
 
-RamDisk_DeclareCAmkESComponent(
-    RamDisk
-    system_config
+TimeServer_DeclareCAmkESComponent(
+    TimeServer
+)
+
+RPi_SPI_Flash_DeclareCAmkESComponent(
+    RPi_SPI_Flash
+    LIBS
+        TimeServer_client
 )
 
 StorageServer_DeclareCAmkESComponent(
