@@ -15,22 +15,18 @@ target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 #-------------------------------------------------------------------------------
 project(demo_exercise C)
 
+set(LibEthdriverNumPreallocatedBuffers 32 CACHE STRING "" FORCE)
+
 TimeServer_DeclareCAmkESComponent(
     TimeServer
 )
 
-RPi_SPI_Flash_DeclareCAmkESComponent(
-    RPi_SPI_Flash
-    LIBS
-        TimeServer_client
+SdHostController_DeclareCAmkESComponent(
+    SdHostController
 )
 
 StorageServer_DeclareCAmkESComponent(
     StorageServer
-)
-
-NIC_RPi_DeclareCAmkESComponent(
-    NIC_RPi
 )
 
 DeclareCAmkESComponent(

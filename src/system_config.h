@@ -33,10 +33,16 @@
 //-----------------------------------------------------------------------------
 // StorageServer
 //-----------------------------------------------------------------------------
-#define FILESYSTEM_1_STORAGE_OFFSET     0
-#define FILESYSTEM_1_STORAGE_SIZE       (1024*32)
-#define FILESYSTEM_2_STORAGE_OFFSET     (1024*32)
-#define FILESYSTEM_2_STORAGE_SIZE       (1024*32)
+
+// 129 MiB reserved for MBR and BOOT partition
+#define MBR_STORAGE_SIZE            (1*1024*1024)
+#define BOOT_STORAGE_SIZE           (128*1024*1024)
+
+// 32 MiB for TestApp
+#define FILESYSTEM_1_STORAGE_OFFSET     (MBR_STORAGE_SIZE + BOOT_STORAGE_SIZE)
+#define FILESYSTEM_1_STORAGE_SIZE       (16*1024*1024)
+#define FILESYSTEM_2_STORAGE_OFFSET     (FILESYSTEM_1_STORAGE_OFFSET + FILESYSTEM_1_STORAGE_SIZE)
+#define FILESYSTEM_2_STORAGE_SIZE       (16*1024*1024)
 
 //-----------------------------------------------------------------------------
 // NIC driver

@@ -19,18 +19,18 @@
 // Storage
 //----------------------------------------------------------------------
 
-static OS_FileSystem_Config_t spiffsCfg_1 =
+static OS_FileSystem_Config_t fatCfg_1 =
 {
-    .type = OS_FileSystem_Type_SPIFFS,
+    .type = OS_FileSystem_Type_FATFS,
     .size = OS_FileSystem_USE_STORAGE_MAX,
     .storage = IF_OS_STORAGE_ASSIGN(
         storage_rpc_1,
         storage_dp_1),
 };
 
-static OS_FileSystem_Config_t spiffsCfg_2 =
+static OS_FileSystem_Config_t fatCfg_2 =
 {
-    .type = OS_FileSystem_Type_SPIFFS,
+    .type = OS_FileSystem_Type_FATFS,
     .size = OS_FileSystem_USE_STORAGE_MAX,
     .storage = IF_OS_STORAGE_ASSIGN(
         storage_rpc_2,
@@ -54,12 +54,6 @@ test_OS_FileSystem(OS_FileSystem_Config_t* cfg)
     if ((ret = OS_FileSystem_init(&hFs, cfg)) != OS_SUCCESS)
     {
         Debug_LOG_ERROR("OS_FileSystem_init() failed, code %d", ret);
-    }
-
-    // Format file system
-    if ((ret = OS_FileSystem_format(hFs)) != OS_SUCCESS)
-    {
-        Debug_LOG_ERROR("OS_FileSystem_format() failed, code %d", ret);
     }
 
     // Mount file system
@@ -277,10 +271,10 @@ int run()
     // ----------------------------------------------------------------------
 
     // Work on file system 1 (residing on partition 1)
-    test_OS_FileSystem(&spiffsCfg_1);
+    test_OS_FileSystem(&fatCfg_1);
 
     // Work on file system 2 (residing on partition 2)
-    test_OS_FileSystem(&spiffsCfg_2);
+    test_OS_FileSystem(&fatCfg_2);
 
     Debug_LOG_INFO("Demo completed successfully.");
 

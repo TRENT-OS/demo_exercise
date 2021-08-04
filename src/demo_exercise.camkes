@@ -19,9 +19,9 @@ TimeServer_COMPONENT_DEFINE(TimeServer)
 // Storage
 //----------------------------------------------------------------------
 
-#include "RPi_SPI_Flash/RPi_SPI_Flash.camkes"
-RPi_SPI_Flash_COMPONENT_DEFINE(RPi_SPI_Flash)
-RPi_SPI_Flash_HW_COMPONENT_DEFINE(RPi_SPI_Flash_HW)
+#include "SdHostController/SdHostController.camkes"
+SdHostController_COMPONENT_DEFINE(SdHostController)
+SdHostController_HW_COMPONENT_DEFINE(SdHostController_HW)
 
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
@@ -30,10 +30,7 @@ StorageServer_COMPONENT_DEFINE(StorageServer)
 // Network
 //----------------------------------------------------------------------
 
-#include "NIC_RPi/NIC_RPi.camkes"
-NIC_RPi_COMPONENT_DEFINE(NIC_RPi, NIC_DRIVER_RINGBUFFER_SIZE)
-NIC_RPi_Mailbox_COMPONENT_DEFINE(NIC_RPi_Mailbox)
-NIC_RPi_USB_COMPONENT_DEFINE(NIC_RPi_USB)
+#include "NIC_iMX6/NIC_iMX6.camkes"
 
 //----------------------------------------------------------------------
 // Ticker
@@ -59,12 +56,11 @@ assembly {
         //----------------------------------------------------------------------
         // Storage
         //----------------------------------------------------------------------
-        component   RPi_SPI_Flash       flash;
-        component   RPi_SPI_Flash_HW    flash_hw;
+        component   SdHostController_HW     sdhcHw;
+        component   SdHostController        sdhc;
 
-        RPi_SPI_Flash_INSTANCE_CONNECT(
-            flash,
-            flash_hw
+        SdHostController_INSTANCE_CONNECT(
+            sdhc, sdhcHw
         )
 
         //----------------------------------------------------------------------
@@ -74,7 +70,7 @@ assembly {
 
         StorageServer_INSTANCE_CONNECT(
             storageServer,
-            flash.storage_rpc, flash.storage_port
+            sdhc.storage_rpc, sdhc.storage_port
         )
 
         StorageServer_INSTANCE_CONNECT_CLIENTS(
@@ -90,8 +86,6 @@ assembly {
 
         TimeServer_INSTANCE_CONNECT_CLIENTS(
             timeServer,
-            flash.timeServer_rpc, flash.timeServer_notify,
-            nic.timeServer_rpc, nic.timeServer_notify,
             ticker.timeServer_rpc, ticker.timeServer_notify,
             nwStack.timeServer_rpc, nwStack.timeServer_notify
         )
@@ -99,15 +93,9 @@ assembly {
         //----------------------------------------------------------------------
         // Ethernet Driver
         //----------------------------------------------------------------------
-        component NIC_RPi           nic;
-        component NIC_RPi_Mailbox   nic_mailbox;
-        component NIC_RPi_USB       nic_usb;
+        NIC_IMX6_INSTANCE(nwDriver)
 
-        NIC_RPi_INSTANCE_CONNECT(
-            nic,
-            nic_mailbox,
-            nic_usb
-        )
+        NIC_IMX6_INSTANCE_CONNECT_CLIENT(nwDriver, nwStack)
 
         //----------------------------------------------------------------------
         // Ticker
@@ -132,11 +120,6 @@ assembly {
         connection seL4Notification GEN_NAME(COMPONENT, _c)(from COMPONENT.GEN_ID(e_conn), to COMPONENT.GEN_ID(c_conn));
 #include "include/util/loop.h"
 #undef COMPONENT
-
-        NIC_RPi_INSTANCE_CONNECT_CLIENT(
-            nic,
-            nwStack.nic_driver, nwStack.nic_port_to, nwStack.nic_port_from, nwStack.event_tick_or_data
-        )
 
         //----------------------------------------------------------------------
         // Demo Component (using File System and Networking)
@@ -166,27 +149,15 @@ assembly {
         )
 
         TimeServer_CLIENT_ASSIGN_BADGES(
-            flash.timeServer_rpc,
-            nic.timeServer_rpc,
             ticker.timeServer_rpc,
             nwStack.timeServer_rpc
         )
 
-        RPi_SPI_Flash_HW_INSTANCE_CONFIGURE_SELF(
-            flash_hw
-        )
+        /* SdHostController driver configuration */
+        SdHostController_INSTANCE_CONFIGURE(sdhc)
+        SdHostController_HW_INSTANCE_CONFIGURE(sdhcHw)
 
-        NIC_RPi_Mailbox_INSTANCE_CONFIGURE_SELF(
-            nic_mailbox
-        )
-
-        NIC_RPi_USB_INSTANCE_CONFIGURE_SELF(
-            nic_usb
-        )
-
-        NIC_RPi_INSTANCE_CONFIGURE(
-            nic,
-            4*40960
-        )
+        /* Ethernet driver configuration */
+        NIC_IMX6_MEMORY_CONFIG(nwDriver)
     }
 }
