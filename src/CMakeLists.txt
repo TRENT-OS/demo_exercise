@@ -15,9 +15,8 @@ target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_LIST_DIR})
 #-------------------------------------------------------------------------------
 project(demo_exercise C)
 
-RamDisk_DeclareCAmkESComponent(
-    RamDisk
-    system_config
+SdHostController_DeclareCAmkESComponent(
+    SdHostController
 )
 
 StorageServer_DeclareCAmkESComponent(

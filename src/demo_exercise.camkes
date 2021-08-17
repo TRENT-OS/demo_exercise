@@ -12,8 +12,9 @@ import <std_connector.camkes>;
 // Storage
 //----------------------------------------------------------------------
 
-#include "RamDisk/RamDisk.camkes"
-RamDisk_COMPONENT_DEFINE(RamDisk)
+#include "SdHostController/SdHostController.camkes"
+SdHostController_COMPONENT_DEFINE(SdHostController)
+SdHostController_HW_COMPONENT_DEFINE(SdHostController_HW)
 
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
@@ -29,7 +30,12 @@ assembly {
         //----------------------------------------------------------------------
         // Storage
         //----------------------------------------------------------------------
-        component   RamDisk             ramDisk;
+        component   SdHostController_HW     sdhcHw;
+        component   SdHostController        sdhc;
+
+        SdHostController_INSTANCE_CONNECT(
+            sdhc, sdhcHw
+        )
 
         //----------------------------------------------------------------------
         // StorageServer
@@ -38,7 +44,7 @@ assembly {
 
         StorageServer_INSTANCE_CONNECT(
             storageServer,
-            ramDisk.storage_rpc, ramDisk.storage_port
+            sdhc.storage_rpc, sdhc.storage_port
         )
 
         StorageServer_INSTANCE_CONNECT_CLIENTS(
@@ -65,5 +71,9 @@ assembly {
             testApp.storage_rpc_1,
             testApp.storage_rpc_2
         )
+
+        /* SdHostController driver configuration */
+        SdHostController_INSTANCE_CONFIGURE(sdhc)
+        SdHostController_HW_INSTANCE_CONFIGURE(sdhcHw)
     }
 }
