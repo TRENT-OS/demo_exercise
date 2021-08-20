@@ -1,10 +1,15 @@
-#!/bin/bash -eu
+#!/bin/bash -eum
 
 #-------------------------------------------------------------------------------
 #
 # Copyright (C) 2020, Hensoldt Cyber GmbH
 #
 #-------------------------------------------------------------------------------
+CURRENT_SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
+
+SDK_PATH=${CURRENT_SCRIPT_DIR}/../..
+
+DIR_BIN_SDK=${SDK_PATH}/bin
 
 if [[ -z "${1:-}" ]]; then
     echo "ERROR: missing system image parameter"
@@ -34,7 +39,7 @@ QEMU_PARAMS=(
     -machine ${QEMU_MACHINE}
     -m size=512M
     -nographic
-    -serial /dev/null
+    -serial tcp:localhost:4444,server # serial port 0 is used for Proxy connection
     -serial mon:stdio      # serial port 1 is used for console
     -kernel ${SYSTEM_IMAGE}
     -drive file="sdk/demos/demo_exercise/yoursd.img",format=raw,id=mycard
@@ -42,5 +47,11 @@ QEMU_PARAMS=(
 )
 
 # run QEMU showing command line
-set -x
-qemu-system-arm ${QEMU_PARAMS[@]}
+qemu-system-arm ${QEMU_PARAMS[@]} 2> qemu_stderr.txt &
+sleep 1
+
+# start proxy app
+${DIR_BIN_SDK}/proxy_app -c TCP:4444 -t 1  > proxy_app.out &
+sleep 1
+
+fg

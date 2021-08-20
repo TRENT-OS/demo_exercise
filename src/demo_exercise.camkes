@@ -19,6 +19,40 @@ SdHostController_HW_COMPONENT_DEFINE(SdHostController_HW)
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
 
+//----------------------------------------------------------------------
+// Network
+//----------------------------------------------------------------------
+
+#include "ChanMux/ChanMux_UART.camkes"
+ChanMux_UART_COMPONENT_DEFINE(
+    ChanMux_UART,
+    nwDriver, data,
+    nwDriver, ctrl
+)
+
+#include "NIC_ChanMux/NIC_ChanMux.camkes"
+NIC_ChanMux_COMPONENT_DEFINE(NwDriver, NIC_DRIVER_RINGBUFFER_SIZE)
+
+//----------------------------------------------------------------------
+// Timer
+//----------------------------------------------------------------------
+
+#include "TimeServer/camkes/TimeServer.camkes"
+TimeServer_COMPONENT_DEFINE(TimeServer)
+
+//----------------------------------------------------------------------
+// Ticker
+//----------------------------------------------------------------------
+
+import "components/Ticker/Ticker.camkes";
+
+//----------------------------------------------------------------------
+// Network Stack
+//----------------------------------------------------------------------
+
+import "components/NetworkStack/NetworkStack.camkes";
+#include "include/util/loop_defines.h"
+
 import "components/TestApp/TestApp.camkes";
 
 //----------------------------------------------------------------------
@@ -54,9 +88,78 @@ assembly {
         )
 
         //----------------------------------------------------------------------
-        // Demo Component (using File System)
+        // ChanMux + UART
+        //----------------------------------------------------------------------
+        component ChanMux_UART chanMux_UART;
+        component UART_CHANMUX uart;
+
+        ChanMux_UART_INSTANCE_CONNECT(
+            chanMux_UART,
+            uart
+        )
+
+        //----------------------------------------------------------------------
+        // Ethernet Driver
+        //----------------------------------------------------------------------
+        component  NwDriver         nwDriver;
+
+        ChanMux_UART_INSTANCE_CONNECT_CLIENT(
+            chanMux_UART,
+            nwDriver, data, ctrl
+        )
+
+        NIC_ChanMux_INSTANCE_CONNECT_CLIENT(
+            nwDriver,
+            nwStack.nic_driver,  nwStack.nic_port_to, nwStack.nic_port_from, nwStack.event_tick_or_data
+        )
+
+        //----------------------------------------------------------------------
+        // Ticker
+        // It's a very pragmatic approach to create a 1 second tick for each
+        // network stack. Actually, we don't need this, because the TimeServer
+        // should provide two timers per client, one for timeouts and one for
+        // the periodic tick.
+        //----------------------------------------------------------------------
+        component Ticker ticker;
+        connection seL4NotificationNative nwStack_tick (from ticker.nwStack_event_tick, to nwStack.event_tick_or_data);
+
+        //----------------------------------------------------------------------
+        // TimeServer
+        //----------------------------------------------------------------------
+        component TimeServer timeServer;
+
+        TimeServer_INSTANCE_CONNECT_CLIENTS(
+            timeServer,
+            ticker.timeServer_rpc, ticker.timeServer_notify,
+            nwStack.timeServer_rpc, nwStack.timeServer_notify
+        )
+
+        //----------------------------------------------------------------------
+        // Network Stack
+        //----------------------------------------------------------------------
+        component  NetworkStack                nwStack;
+
+#define COMPONENT nwStack
+#define LOOP_COUNT OS_NETWORK_MAXIMUM_SOCKET_NO
+#define LOOP_ELEMENT \
+        connection seL4Notification GEN_NAME(COMPONENT, _a)(from COMPONENT.GEN_ID(e_write), to COMPONENT.GEN_ID(c_write)); \
+        connection seL4Notification GEN_NAME(COMPONENT, _b)(from COMPONENT.GEN_ID(e_read), to COMPONENT.GEN_ID(c_read));   \
+        connection seL4Notification GEN_NAME(COMPONENT, _c)(from COMPONENT.GEN_ID(e_conn), to COMPONENT.GEN_ID(c_conn));
+#include "include/util/loop.h"
+#undef COMPONENT
+
+        //----------------------------------------------------------------------
+        // Demo Component (using File System and Networking)
         //----------------------------------------------------------------------
         component   TestApp      testApp;
+
+        connection seL4Notification     NwAppInitDone               (from nwStack.nwStack_event_ready, to testApp.event_network_stack_init_done);
+        connection seL4RPCCall          testApp_nwStack             (from testApp.network_stack_rpc, to nwStack.network_stack_rpc);
+
+#define LOOP_COUNT OS_NETWORK_MAXIMUM_SOCKET_NO
+#define LOOP_ELEMENT \
+        connection seL4SharedData GEN_NAME(testApp, nwStack)(from testApp.GEN_ID(NwAppDataPort), to nwStack.GEN_ID(nwStack_port));
+#include "include/util/loop.h"
     }
 
     configuration {
@@ -75,5 +178,14 @@ assembly {
         /* SdHostController driver configuration */
         SdHostController_INSTANCE_CONFIGURE(sdhc)
         SdHostController_HW_INSTANCE_CONFIGURE(sdhcHw)
+
+        ChanMux_UART_CLIENT_ASSIGN_BADGES(
+            nwDriver.chanMux_Rpc
+        )
+
+        TimeServer_CLIENT_ASSIGN_BADGES(
+            ticker.timeServer_rpc,
+            nwStack.timeServer_rpc
+        )
     }
 }

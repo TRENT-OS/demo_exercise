@@ -3,8 +3,10 @@
  */
 
 import <if_OS_Storage.camkes>;
+import <if_OS_Socket.camkes>;
 
 #include "system_config.h"
+#include "include/util/loop_defines.h"
 
 component TestApp {
     control;
@@ -16,4 +18,13 @@ component TestApp {
     // For underlying storage - partition 2
     uses        if_OS_Storage       storage_rpc_2;
     dataport    Buf                 storage_dp_2;
+
+    // Networking
+    uses        if_OS_Socket        network_stack_rpc;
+    consumes    EventServiceReady   event_network_stack_init_done;
+
+#define LOOP_COUNT OS_NETWORK_MAXIMUM_SOCKET_NO
+#define LOOP_ELEMENT \
+    GEN_ID(dataport Buf NwAppDataPort);
+#include "include/util/loop.h"
 }

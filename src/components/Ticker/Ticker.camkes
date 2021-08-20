@@ -1,0 +1,17 @@
+/*
+ *  Ticker
+ *
+ *  Copyright (C) 2021, Hensoldt Cyber GmbH
+ *
+ */
+
+import <if_OS_Timer.camkes>;
+
+component Ticker {
+    control;
+
+    uses        if_OS_Timer         timeServer_rpc;
+    consumes    TimerReady          timeServer_notify;
+
+    emits       EventDataAvailable  nwStack_event_tick;
+}
