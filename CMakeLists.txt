@@ -15,8 +15,8 @@ os_set_config_file(
 #-------------------------------------------------------------------------------
 project(demo_exercise C)
 
-RamDisk_DeclareCAmkESComponent(
-    RamDisk
+SdHostController_DeclareCAmkESComponent(
+    SdHostController
 )
 
 StorageServer_DeclareCAmkESComponent(
