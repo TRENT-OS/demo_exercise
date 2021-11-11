@@ -10,18 +10,18 @@
 #include <camkes.h>
 
 //------------------------------------------------------------------------------
-static OS_FileSystem_Config_t fatCfg_1 =
+static OS_FileSystem_Config_t spiffsCfg_1 =
 {
-    .type = OS_FileSystem_Type_FATFS,
+    .type = OS_FileSystem_Type_SPIFFS,
     .size = OS_FileSystem_USE_STORAGE_MAX,
     .storage = IF_OS_STORAGE_ASSIGN(
         storage_rpc_1,
         storage_dp_1),
 };
 
-static OS_FileSystem_Config_t fatCfg_2 =
+static OS_FileSystem_Config_t spiffsCfg_2 =
 {
-    .type = OS_FileSystem_Type_FATFS,
+    .type = OS_FileSystem_Type_SPIFFS,
     .size = OS_FileSystem_USE_STORAGE_MAX,
     .storage = IF_OS_STORAGE_ASSIGN(
         storage_rpc_2,
@@ -127,10 +127,10 @@ test_OS_FileSystem(OS_FileSystem_Config_t* cfg)
 int run()
 {
     // Work on file system 1 (residing on partition 1)
-    test_OS_FileSystem(&fatCfg_1);
+    test_OS_FileSystem(&spiffsCfg_1);
 
     // Work on file system 2 (residing on partition 2)
-    test_OS_FileSystem(&fatCfg_2);
+    test_OS_FileSystem(&spiffsCfg_2);
 
     Debug_LOG_INFO("Demo completed successfully.");
 
