@@ -34,6 +34,6 @@
 // StorageServer
 //-----------------------------------------------------------------------------
 #define FILESYSTEM_1_STORAGE_OFFSET     0
-#define FILESYSTEM_1_STORAGE_SIZE       (1024*1024)
-#define FILESYSTEM_2_STORAGE_OFFSET     (1024*1024)
-#define FILESYSTEM_2_STORAGE_SIZE       (1024*1024)
+#define FILESYSTEM_1_STORAGE_SIZE       (1024*32)
+#define FILESYSTEM_2_STORAGE_OFFSET     (1024*32)
+#define FILESYSTEM_2_STORAGE_SIZE       (1024*32)

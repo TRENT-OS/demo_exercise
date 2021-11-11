@@ -9,11 +9,19 @@ import <std_connector.camkes>;
 #include "system_config.h"
 
 //----------------------------------------------------------------------
+// TimeServer
+//----------------------------------------------------------------------
+
+#include "TimeServer/camkes/TimeServer.camkes"
+TimeServer_COMPONENT_DEFINE(TimeServer)
+
+//----------------------------------------------------------------------
 // Storage
 //----------------------------------------------------------------------
 
-#include "RamDisk/RamDisk.camkes"
-RamDisk_COMPONENT_DEFINE(RamDisk)
+#include "RPi_SPI_Flash/RPi_SPI_Flash.camkes"
+RPi_SPI_Flash_COMPONENT_DEFINE(RPi_SPI_Flash)
+RPi_SPI_Flash_HW_COMPONENT_DEFINE(RPi_SPI_Flash_HW)
 
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
@@ -29,7 +37,13 @@ assembly {
         //----------------------------------------------------------------------
         // Storage
         //----------------------------------------------------------------------
-        component   RamDisk             ramDisk;
+        component   RPi_SPI_Flash       flash;
+        component   RPi_SPI_Flash_HW    flash_hw;
+
+        RPi_SPI_Flash_INSTANCE_CONNECT(
+            flash,
+            flash_hw
+        )
 
         //----------------------------------------------------------------------
         // StorageServer
@@ -38,13 +52,23 @@ assembly {
 
         StorageServer_INSTANCE_CONNECT(
             storageServer,
-            ramDisk.storage_rpc, ramDisk.storage_port
+            flash.storage_rpc, flash.storage_port
         )
 
         StorageServer_INSTANCE_CONNECT_CLIENTS(
             storageServer,
             testApp.storage_rpc_1, testApp.storage_dp_1,
             testApp.storage_rpc_2, testApp.storage_dp_2
+        )
+
+        //----------------------------------------------------------------------
+        // TimeServer
+        //----------------------------------------------------------------------
+        component TimeServer timeServer;
+
+        TimeServer_INSTANCE_CONNECT_CLIENTS(
+            timeServer,
+            flash.timeServer_rpc, flash.timeServer_notify
         )
 
         //----------------------------------------------------------------------
@@ -55,8 +79,6 @@ assembly {
 
     configuration {
 
-        ramDisk.storage_size = 2 * 1024 * 1024;
-
         StorageServer_INSTANCE_CONFIGURE_CLIENTS(
             storageServer,
             FILESYSTEM_1_STORAGE_OFFSET, FILESYSTEM_1_STORAGE_SIZE,
@@ -66,6 +88,14 @@ assembly {
         StorageServer_CLIENT_ASSIGN_BADGES(
             testApp.storage_rpc_1,
             testApp.storage_rpc_2
+        )
+
+        TimeServer_CLIENT_ASSIGN_BADGES(
+            flash.timeServer_rpc
+        )
+
+        RPi_SPI_Flash_HW_INSTANCE_CONFIGURE_SELF(
+            flash_hw
         )
     }
 }

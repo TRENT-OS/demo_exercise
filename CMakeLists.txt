@@ -15,8 +15,14 @@ os_set_config_file(
 #-------------------------------------------------------------------------------
 project(demo_exercise C)
 
-RamDisk_DeclareCAmkESComponent(
-    RamDisk
+TimeServer_DeclareCAmkESComponent(
+    TimeServer
+)
+
+RPi_SPI_Flash_DeclareCAmkESComponent(
+    RPi_SPI_Flash
+    LIBS
+        TimeServer_client
 )
 
 StorageServer_DeclareCAmkESComponent(
