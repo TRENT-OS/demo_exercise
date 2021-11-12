@@ -19,9 +19,9 @@ TimeServer_COMPONENT_DEFINE(TimeServer)
 // Storage
 //----------------------------------------------------------------------
 
-#include "RPi_SPI_Flash/RPi_SPI_Flash.camkes"
-RPi_SPI_Flash_COMPONENT_DEFINE(RPi_SPI_Flash)
-RPi_SPI_Flash_HW_COMPONENT_DEFINE(RPi_SPI_Flash_HW)
+#include "SdHostController/SdHostController.camkes"
+SdHostController_COMPONENT_DEFINE(SdHostController)
+SdHostController_HW_COMPONENT_DEFINE(SdHostController_HW)
 
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
@@ -54,12 +54,11 @@ assembly {
         //----------------------------------------------------------------------
         // Storage
         //----------------------------------------------------------------------
-        component   RPi_SPI_Flash       flash;
-        component   RPi_SPI_Flash_HW    flash_hw;
+        component   SdHostController_HW     sdhcHw;
+        component   SdHostController        sdhc;
 
-        RPi_SPI_Flash_INSTANCE_CONNECT(
-            flash,
-            flash_hw
+        SdHostController_INSTANCE_CONNECT(
+            sdhc, sdhcHw
         )
 
         //----------------------------------------------------------------------
@@ -69,7 +68,7 @@ assembly {
 
         StorageServer_INSTANCE_CONNECT(
             storageServer,
-            flash.storage_rpc, flash.storage_port
+            sdhc.storage_rpc, sdhc.storage_port
         )
 
         StorageServer_INSTANCE_CONNECT_CLIENTS(
@@ -85,8 +84,6 @@ assembly {
 
         TimeServer_INSTANCE_CONNECT_CLIENTS(
             timeServer,
-            flash.timeServer_rpc, flash.timeServer_notify,
-            EXERCISE_DEMO_NIC_CONNECTION_TIMESERVER(nwDriver)
             nwStack.timeServer_rpc, nwStack.timeServer_notify
         )
 
@@ -129,14 +126,13 @@ assembly {
             testApp.storage_rpc_2
         )
 
+        /* SdHostController driver configuration */
+        SdHostController_INSTANCE_CONFIGURE(sdhc)
+        SdHostController_HW_INSTANCE_CONFIGURE(sdhcHw)
+
         TimeServer_CLIENT_ASSIGN_BADGES(
             flash.timeServer_rpc,
-            EXERCISE_DEMO_NIC_TIMESERVER_CLIENTS(nwDriver)
             nwStack.timeServer_rpc
-        )
-
-        RPi_SPI_Flash_HW_INSTANCE_CONFIGURE_SELF(
-            flash_hw
         )
 
         EXERCISE_DEMO_NIC_CONFIG(nwDriver)

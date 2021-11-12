@@ -21,10 +21,8 @@ TimeServer_DeclareCAmkESComponent(
     TimeServer
 )
 
-RPi_SPI_Flash_DeclareCAmkESComponent(
-    RPi_SPI_Flash
-    LIBS
-        TimeServer_client
+SdHostController_DeclareCAmkESComponent(
+    SdHostController
 )
 
 StorageServer_DeclareCAmkESComponent(
