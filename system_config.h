@@ -42,12 +42,13 @@
 //-----------------------------------------------------------------------------
 // Network Stack
 //-----------------------------------------------------------------------------
-#define OS_NETWORK_MAXIMUM_SOCKET_NO 16
+#define OS_NETWORK_MAXIMUM_SOCKET_NO 1
 
+#define CFG_TEST_HTTP_SERVER      "10.0.0.10"
 #define ETH_ADDR                  "10.0.0.11"
 #define ETH_GATEWAY_ADDR          "10.0.0.1"
 #define ETH_SUBNET_MASK           "255.255.255.0"
-#define EXERCISE_SERVER_PORT      5555
+#define EXERCISE_CLIENT_PORT      8888
 
 
 //-----------------------------------------------------------------------------

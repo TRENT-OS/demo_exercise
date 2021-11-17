@@ -31,7 +31,7 @@ static OS_FileSystem_Config_t spiffsCfg_2 =
         storage_dp_2),
 };
 
-static char fileData[5];
+static char fileData[250];
 
 //------------------------------------------------------------------------------
 static void
@@ -159,8 +159,8 @@ waitForNetworkStackInit(
 }
 
 static OS_Error_t
-waitForIncomingConnection(
-    const int srvHandleId)
+waitForConnectionEstablished(
+    const int handleId)
 {
     OS_Error_t ret;
 
@@ -210,10 +210,10 @@ waitForIncomingConnection(
         OS_Socket_Evt_t event;
         memcpy(&event, evtBuffer, sizeof(event));
 
-        if (event.socketHandle != srvHandleId)
+        if (event.socketHandle != handleId)
         {
             Debug_LOG_ERROR("Unexpected handle received: %d, expected: %d",
-                            event.socketHandle, srvHandleId);
+                            event.socketHandle, handleId);
             ret = OS_ERROR_INVALID_HANDLE;
             break;
         }
@@ -228,8 +228,8 @@ waitForIncomingConnection(
             break;
         }
 
-        // Incoming connection received.
-        if (event.eventMask & OS_SOCK_EV_CONN_ACPT)
+        // Connection successfully established.
+        if (event.eventMask & OS_SOCK_EV_CONN_EST)
         {
             Debug_LOG_DEBUG("OS_Socket_getPendingEvents() returned "
                             "connection established for handle: %d",
@@ -275,10 +275,10 @@ int run()
         return -1;
     }
 
-    OS_Socket_Handle_t hServer;
+    OS_Socket_Handle_t hSocket;
     ret = OS_Socket_create(
               &networkStackCtx,
-              &hServer,
+              &hSocket,
               OS_AF_INET,
               OS_SOCK_STREAM);
     if (ret != OS_SUCCESS)
@@ -289,116 +289,96 @@ int run()
 
     const OS_Socket_Addr_t dstAddr =
     {
-        .addr = OS_INADDR_ANY_STR,
-        .port = EXERCISE_SERVER_PORT
+        .addr = CFG_TEST_HTTP_SERVER,
+        .port = EXERCISE_CLIENT_PORT
     };
 
-    ret = OS_Socket_bind(
-              hServer,
-              &dstAddr);
+    ret = OS_Socket_connect(hSocket, &dstAddr);
     if (ret != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("OS_Socket_bind() failed, code %d", ret);
-        OS_Socket_close(hServer);
-        return -1;
+        Debug_LOG_ERROR("OS_Socket_connect() failed, code %d", ret);
+        OS_Socket_close(hSocket);
+        return ret;
     }
 
-    ret = OS_Socket_listen(
-              hServer,
-              1);
+    ret = waitForConnectionEstablished(hSocket.handleID);
     if (ret != OS_SUCCESS)
     {
-        Debug_LOG_ERROR("OS_Socket_listen() failed, code %d", ret);
-        OS_Socket_close(hServer);
-        return -1;
-    }
-
-    static uint8_t receivedData[OS_DATAPORT_DEFAULT_SIZE];
-
-    Debug_LOG_INFO("Accepting new connection");
-    OS_Socket_Handle_t hSocket;
-    OS_Socket_Addr_t srcAddr = {0};
-
-    do
-    {
-        ret = waitForIncomingConnection(hServer.handleID);
-        if (ret != OS_SUCCESS)
-        {
-            Debug_LOG_ERROR("waitForIncomingConnection() failed, error %d", ret);
-            OS_Socket_close(hSocket);
-            return -1;
-        }
-
-        ret = OS_Socket_accept(
-                    hServer,
-                    &hSocket,
-                    &srcAddr);
-    }
-    while (ret == OS_ERROR_TRY_AGAIN);
-    if (ret != OS_SUCCESS)
-    {
-        Debug_LOG_ERROR("OS_Socket_accept() failed, error %d", ret);
+        Debug_LOG_ERROR("waitForConnectionEstablished() failed, error %d", ret);
         OS_Socket_close(hSocket);
         return -1;
     }
 
-    Debug_LOG_INFO("launching echo server");
+    Debug_LOG_INFO("Send request to host...");
 
-    // Loop until an error occurs.
+    char* request = "GET / HTTP/1.0\r\nHost: " ETH_GATEWAY_ADDR
+                    "\r\nConnection: close\r\n\r\n";
+
+    size_t len_request = strlen(request);
+    size_t n;
+
     do
     {
-        size_t actualLenRecv = 0;
+        seL4_Yield();
+        ret = OS_Socket_write(hSocket, request, len_request, &n);
+    }
+    while (ret == OS_ERROR_TRY_AGAIN);
 
-        ret = OS_Socket_read(
-                    hSocket,
-                    receivedData,
-                    sizeof(receivedData),
-                    &actualLenRecv);
+    if (OS_SUCCESS != ret)
+    {
+        Debug_LOG_ERROR("OS_Socket_write() failed with error code %d", ret);
+    }
+
+    Debug_LOG_INFO("HTTP request successfully sent");
+
+    static char buffer[OS_DATAPORT_DEFAULT_SIZE];
+    char* position = buffer;
+    size_t read = sizeof(buffer);
+
+    while (read > 0)
+    {
+        ret = OS_Socket_read(hSocket, buffer, read, &read);
+
+        Debug_LOG_INFO("OS_Socket_read() - bytes read: %d, err: %d", read, ret);
+
         switch (ret)
         {
         case OS_SUCCESS:
-            Debug_LOG_INFO(
-                "OS_Socket_read() received %zu bytes of data",
-                actualLenRecv);
-            memcpy(fileData, receivedData, sizeof(fileData));
-
-            size_t lenWritten = 0;
-
-            ret = OS_Socket_write(
-                    hSocket,
-                    receivedData,
-                    sizeof(fileData),
-                    &lenWritten);
-            continue;
-
-        case OS_ERROR_TRY_AGAIN:
-            Debug_LOG_TRACE(
-                "OS_Socket_read() reported try again");
-            continue;
-
+            position = &position[read];
+            read = sizeof(buffer) - (position - buffer);
+            break;
         case OS_ERROR_CONNECTION_CLOSED:
-            Debug_LOG_INFO(
-                "OS_Socket_read() reported connection closed");
+            Debug_LOG_WARNING("connection closed");
+            read = 0;
             break;
-
         case OS_ERROR_NETWORK_CONN_SHUTDOWN:
-            Debug_LOG_DEBUG(
-                "OS_Socket_read() reported connection closed");
+            Debug_LOG_WARNING("connection shut down");
+            read = 0;
             break;
-
+        case OS_ERROR_TRY_AGAIN:
+                Debug_LOG_WARNING(
+                    "OS_Socket_read() reported try again");
+                seL4_Yield();
+                continue;
         default:
-            Debug_LOG_ERROR(
-                "OS_Socket_read() failed, error %d", ret);
-            break;
+            Debug_LOG_ERROR("HTTP page retrieval failed while reading, "
+                            "OS_Socket_read() returned error code %d, bytes read %zu",
+                            ret, (size_t) (position - buffer));
         }
     }
-    while (ret == OS_SUCCESS || ret == OS_ERROR_TRY_AGAIN);
+
+    // Ensure buffer is null-terminated before printing it
+    buffer[sizeof(buffer) - 1] = '\0';
+    Debug_LOG_INFO("Got HTTP Page:\n%s", buffer);
+
+    memcpy(fileData, buffer, sizeof(fileData));
 
     OS_Socket_close(hSocket);
 
     // ----------------------------------------------------------------------
     // Storage Test
     // ----------------------------------------------------------------------
+
     // Work on file system 1 (residing on partition 1)
     test_OS_FileSystem(&spiffsCfg_1);
 
