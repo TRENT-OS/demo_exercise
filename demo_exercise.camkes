@@ -26,7 +26,24 @@ RPi_SPI_Flash_HW_COMPONENT_DEFINE(RPi_SPI_Flash_HW)
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
 
-import "components/TestApp/TestApp.camkes";
+//----------------------------------------------------------------------
+// Network
+//----------------------------------------------------------------------
+
+#include "plat_nic.camkes"
+
+//----------------------------------------------------------------------
+// Network Stack
+//----------------------------------------------------------------------
+
+#include "NetworkStack_PicoTcp/camkes/NetworkStack_PicoTcp.camkes"
+
+NetworkStack_PicoTcp_COMPONENT_DEFINE(
+    NetworkStack_PicoTcp,
+    NIC_DRIVER_RINGBUFFER_SIZE,
+    NetworkStack_PicoTcp_NO_ADDITIONAL_INTERFACES)
+
+#include "components/TestApp/TestApp.camkes";
 
 //----------------------------------------------------------------------
 // System
@@ -68,13 +85,35 @@ assembly {
 
         TimeServer_INSTANCE_CONNECT_CLIENTS(
             timeServer,
-            flash.timeServer_rpc, flash.timeServer_notify
+            flash.timeServer_rpc, flash.timeServer_notify,
+            EXERCISE_DEMO_NIC_CONNECTION_TIMESERVER(nwDriver)
+            nwStack.timeServer_rpc, nwStack.timeServer_notify
+        )
+
+        //----------------------------------------------------------------------
+        // Network Driver
+        //----------------------------------------------------------------------
+        EXERCISE_DEMO_NIC_INSTANCE(nwDriver)
+
+        //----------------------------------------------------------------------
+        // Network Stack
+        //----------------------------------------------------------------------
+        component NetworkStack_PicoTcp    nwStack;
+
+        NetworkStack_PicoTcp_INSTANCE_CONNECT(
+            nwStack,
+            nwDriver
         )
 
         //----------------------------------------------------------------------
         // Demo Component (using File System)
         //----------------------------------------------------------------------
         component   TestApp      testApp;
+
+        NetworkStack_PicoTcp_INSTANCE_CONNECT_CLIENTS(
+            nwStack,
+            testApp, networkStack
+        )
     }
 
     configuration {
@@ -91,11 +130,24 @@ assembly {
         )
 
         TimeServer_CLIENT_ASSIGN_BADGES(
-            flash.timeServer_rpc
+            flash.timeServer_rpc,
+            EXERCISE_DEMO_NIC_TIMESERVER_CLIENTS(nwDriver)
+            nwStack.timeServer_rpc
         )
 
         RPi_SPI_Flash_HW_INSTANCE_CONFIGURE_SELF(
             flash_hw
+        )
+
+        EXERCISE_DEMO_NIC_CONFIG(nwDriver)
+
+        NetworkStack_PicoTcp_CLIENT_ASSIGN_BADGES(
+            testApp, networkStack
+        )
+
+        NetworkStack_PicoTcp_INSTANCE_CONFIGURE_CLIENTS(
+            nwStack,
+            2
         )
     }
 }
