@@ -19,7 +19,31 @@ SdHostController_HW_COMPONENT_DEFINE(SdHostController_HW)
 #include "StorageServer/camkes/StorageServer.camkes"
 StorageServer_COMPONENT_DEFINE(StorageServer)
 
-import "components/TestApp/TestApp.camkes";
+//----------------------------------------------------------------------
+// Network
+//----------------------------------------------------------------------
+
+#include "plat_nic.camkes"
+
+//----------------------------------------------------------------------
+// Network Stack
+//----------------------------------------------------------------------
+
+#include "NetworkStack_PicoTcp/camkes/NetworkStack_PicoTcp.camkes"
+
+NetworkStack_PicoTcp_COMPONENT_DEFINE(
+    NetworkStack_PicoTcp,
+    NIC_DRIVER_RINGBUFFER_SIZE,
+    NetworkStack_PicoTcp_NO_ADDITIONAL_INTERFACES)
+
+//----------------------------------------------------------------------
+// TimeServer
+//----------------------------------------------------------------------
+
+#include "TimeServer/camkes/TimeServer.camkes"
+TimeServer_COMPONENT_DEFINE(TimeServer)
+
+#include "components/TestApp/TestApp.camkes"
 
 //----------------------------------------------------------------------
 // System
@@ -54,9 +78,39 @@ assembly {
         )
 
         //----------------------------------------------------------------------
+        // Network Driver
+        //----------------------------------------------------------------------
+        EXERCISE_DEMO_NIC_INSTANCE(nwDriver)
+
+        //----------------------------------------------------------------------
+        // Network Stack
+        //----------------------------------------------------------------------
+        component NetworkStack_PicoTcp    nwStack;
+
+        NetworkStack_PicoTcp_INSTANCE_CONNECT(
+            nwStack,
+            nwDriver
+        )
+
+        //----------------------------------------------------------------------
+        // TimeServer
+        //----------------------------------------------------------------------
+        component TimeServer timeServer;
+
+        TimeServer_INSTANCE_CONNECT_CLIENTS(
+            timeServer,
+            nwStack.timeServer_rpc, nwStack.timeServer_notify
+        )
+
+        //----------------------------------------------------------------------
         // Demo Component (using File System)
         //----------------------------------------------------------------------
         component   TestApp      testApp;
+
+        NetworkStack_PicoTcp_INSTANCE_CONNECT_CLIENTS(
+            nwStack,
+            testApp, networkStack
+        )
     }
 
     configuration {
@@ -75,5 +129,20 @@ assembly {
         /* SdHostController driver configuration */
         SdHostController_INSTANCE_CONFIGURE(sdhc)
         SdHostController_HW_INSTANCE_CONFIGURE(sdhcHw)
+
+        EXERCISE_DEMO_NIC_CONFIG(nwDriver)
+
+        TimeServer_CLIENT_ASSIGN_BADGES(
+            nwStack.timeServer_rpc
+        )
+
+        NetworkStack_PicoTcp_CLIENT_ASSIGN_BADGES(
+            testApp, networkStack
+        )
+
+        NetworkStack_PicoTcp_INSTANCE_CONFIGURE_CLIENTS(
+            nwStack,
+            2
+        )
     }
 }

@@ -1,0 +1,23 @@
+/*
+ * i.MX6 Sabre Lite board/QEMU configuration
+ *
+ * Copyright (C) 2021, HENSOLDT Cyber GmbH
+ */
+
+#pragma once
+
+#include "NIC_iMX6/NIC_iMX6.camkes"
+
+
+// Create an i.MX6 NIC driver instance.
+#define EXERCISE_DEMO_NIC_INSTANCE(_nic_) \
+    NIC_IMX6_INSTANCE(_nic_)
+
+
+// Use the default configuration, but ensure we always prefer the MAC from
+// OCOTP and fall back to the MAC below only if none is set there. Since QEMU
+// does not have OCOTP, the MAC below will always be used there.
+#define EXERCISE_DEMO_NIC_CONFIG(_nic_) \
+    NIC_IMX6_MEMORY_CONFIG(_nic_) \
+    _nic_.fallback_mac = 1; \
+    _nic_.MAC_address = "\xDE\xAD\xDE\xAD\x00\x00";

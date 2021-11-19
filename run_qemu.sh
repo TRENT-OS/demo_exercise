@@ -2,9 +2,15 @@
 
 #-------------------------------------------------------------------------------
 #
-# Copyright (C) 2020, Hensoldt Cyber GmbH
+# Copyright (C) 2021, Hensoldt Cyber GmbH
 #
 #-------------------------------------------------------------------------------
+
+CURRENT_SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
+
+SDK_PATH=${CURRENT_SCRIPT_DIR}/../..
+
+DIR_BIN_SDK=${SDK_PATH}/bin
 
 if [[ -z "${1:-}" ]]; then
     echo "ERROR: missing system image parameter"
@@ -39,6 +45,7 @@ QEMU_PARAMS=(
     -kernel ${SYSTEM_IMAGE}
     -drive file="sdk/demos/demo_exercise/yoursd.img",format=raw,id=mycard
     -device sd-card,drive=mycard
+    -nic tap,ifname=tap0,script=no
 )
 
 # run QEMU showing command line
